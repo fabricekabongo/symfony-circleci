@@ -1,0 +1,34 @@
+machine:
+  timezone: Africa/Johannesburg # Set the timezone
+  # Version of php to use
+  php:
+    version: 5.6.22
+  services:
+    - docker
+
+dependencies:
+  pre:
+    - echo "date.timezone = Africa/Johannesburg" >> /opt/circleci/php/$(phpenv global)/etc/php.ini
+    - echo "memory_limit = 200M" > /opt/circleci/php/$(phpenv global)/etc/conf.d/memory.ini
+  cache_directories:
+    - "~/docker"
+  override:
+    - composer install -o -n
+    - docker info
+    #Am I the only one to think this cache thing doesn't work?
+    - if [[ -e ~/docker/YOUR_IMAGE-image.tar ]]; then docker load -i ~/docker/YOUR_IMAGE-image.tar; fi 
+    - bash docker-build.sh
+    - mkdir -p ~/docker; docker save YOUR_USERNAME/YOUR_IMAGE > ~/docker/YOUR_IMAGE-image.tar
+
+test:
+  override:
+    - sudo lxc-attach -n "$(docker inspect --format "{{.Id}}" YOUR_IMAGE)" -- bash -c "/var/www/docker-test.sh"
+  post:
+    - rm -rf ~/.config
+
+deployment:
+  hub:
+    branch: master
+    commands:
+      - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
+      - docker push YOUR_USERNAME/YOUR_IMAGE
